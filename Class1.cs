@@ -1,4 +1,5 @@
-﻿using System;
+﻿using HarmonyLib;
+using System;
 using MelonLoader;
 using UnityEngine;
 using UnityEngine.UI;
@@ -7,6 +8,15 @@ using System.Reflection;
 
 namespace PetTheInkling
 {
+    [HarmonyPatch(typeof(AIDiageticInteraction), "Select")]
+    public static class DiageticInteractionPatch
+    {
+        public static void Postfix(AIDiageticInteraction __instance)
+        {
+            __instance.OnInteract?.Invoke();
+        }
+    }
+
     public class Class1 : MelonMod
     {
         private bool modInitialized = false;
@@ -106,7 +116,7 @@ namespace PetTheInkling
                     try
                     {
                         // Check if this AI already has a pet interaction component
-                        var existingInteraction = aiControl.GetComponent<AIDiageticInteraction>();
+                        var existingInteraction = aiControl.GetComponentInChildren<AIDiageticInteraction>();
                         if (existingInteraction != null && existingInteraction.Label == "Pet Inkling")
                         {
                             continue; // Already has pet interaction, skip
@@ -125,7 +135,7 @@ namespace PetTheInkling
                             {
                                 petOwnerID = (int)petOwnerIDField.GetValue(aiControl);
                                 isPet = petOwnerID != -1;
-                                MelonLogger.Msg($"  PetOwnerID: {petOwnerID}, isPet: {isPet}");
+                                //MelonLogger.Msg($"  PetOwnerID: {petOwnerID}, isPet: {isPet}");
                             }
                             catch (Exception ex)
                             {
@@ -142,7 +152,7 @@ namespace PetTheInkling
 
                             isPet = nameMatch || hasInklingTag || hasPetTag;
                             
-                            MelonLogger.Msg($"  Alternative detection - Name match: {nameMatch}, Inkling tag: {hasInklingTag}, Pet tag: {hasPetTag}, Final isPet: {isPet}");
+                            //MelonLogger.Msg($"  Alternative detection - Name match: {nameMatch}, Inkling tag: {hasInklingTag}, Pet tag: {hasPetTag}, Final isPet: {isPet}");
                         }
 
                         if (isPet)
@@ -150,7 +160,7 @@ namespace PetTheInkling
                             MelonLogger.Msg($"Found pet/Inkling: {aiControl.name} (Owner: {petOwnerID})");
 
                             // Add pet interaction component
-                            var petInteraction = aiControl.gameObject.AddComponent<AIDiageticInteraction>();
+                            var petInteraction = aiControl.transform.GetChild(0).gameObject.AddComponent<AIDiageticInteraction>();
 
                             // Configure the interaction similar to Dawn and Dusk
                             petInteraction.Label = "Pet Inkling";
@@ -247,6 +257,9 @@ namespace PetTheInkling
         {
             try
             {
+                interaction.OnInteract += () => {
+                    MelonLogger.Msg($"{aiControl.name} has been pet!");
+                };
                 // Create a simple effect that could play an animation or sound
                 // This is a basic implementation - you might want to add more sophisticated effects
                 
