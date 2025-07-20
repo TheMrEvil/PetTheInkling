@@ -14,6 +14,7 @@ namespace PetTheInkling
         public static void Postfix(AIDiageticInteraction __instance)
         {
             __instance.OnInteract?.Invoke();
+            __instance.InternalCooldown = __instance.Cooldown;
         }
     }
 
@@ -24,7 +25,7 @@ namespace PetTheInkling
         private MethodInfo hasTagMethod = null;
         private PropertyInfo viewIDProperty = null;
         private float lastPetCheckTime = 0f;
-        private const float PET_CHECK_INTERVAL = 2f; // Check every 2 seconds
+        private const float PET_CHECK_INTERVAL = 3f; // Check every 3 seconds
 
         public override void OnApplicationStart()
         {
@@ -100,13 +101,7 @@ namespace PetTheInkling
                 if (player == null) return; // No player yet, skip this check
 
                 // Find all AI controls that could be Inklings (pets with owners)
-                var aiControls = GameObject.FindObjectsOfType<AIControl>();
-                
-                // Only log when we find AI controls to reduce spam
-                if (aiControls.Length > 0)
-                {
-                    MelonLogger.Msg($"Found {aiControls.Length} AIControl objects, checking for pets...");
-                }
+                var aiControls = GameObject.FindObjectsOfType<AIControl>();  
 
                 int petInteractionsAdded = 0;
                 int playerViewID = GetPlayerViewID(player);
@@ -117,13 +112,10 @@ namespace PetTheInkling
                     {
                         // Check if this AI already has a pet interaction component
                         var existingInteraction = aiControl.GetComponentInChildren<AIDiageticInteraction>();
-                        if (existingInteraction != null && existingInteraction.Label == "Pet Inkling")
+                        if (existingInteraction != null && existingInteraction.Label == "Pet")
                         {
                             continue; // Already has pet interaction, skip
                         }
-
-                        // Debug info for each AI
-                        MelonLogger.Msg($"Checking AI: {aiControl.name} (AIName: {aiControl.AIName})");
 
                         // Check if this AI is a pet using reflection or alternative methods
                         bool isPet = false;
@@ -163,11 +155,11 @@ namespace PetTheInkling
                             var petInteraction = aiControl.transform.GetChild(0).gameObject.AddComponent<AIDiageticInteraction>();
 
                             // Configure the interaction similar to Dawn and Dusk
-                            petInteraction.Label = "Pet Inkling";
-                            petInteraction.InteractDistance = 5f;
+                            petInteraction.Label = "Pet";
+                            petInteraction.InteractDistance = 2.5f;
                             petInteraction.Interactivity = AIDiageticInteraction.RepeatType.OwnerCooldown;
                             petInteraction.Cooldown = 3f; // 3 second cooldown between pets
-                            petInteraction.OwnerOnly = true; // Only the owner can pet
+                            petInteraction.OwnerOnly = false;
                             petInteraction.Act = AIDiageticInteraction.InteractType.Action;
 
                             // Create a simple petting action
@@ -182,14 +174,6 @@ namespace PetTheInkling
                         MelonLogger.Error($"Error processing AI {aiControl.name}: {ex.Message}");
                     }
                 }
-
-                if (petInteractionsAdded > 0)
-                {
-                    MelonLogger.Msg($"Added {petInteractionsAdded} new pet interactions this check.");
-                }
-
-                // Also check for nearby pet interactions for debugging
-                CheckForNearbyPetInteractions();
             }
             catch (System.Exception ex)
             {
@@ -204,7 +188,6 @@ namespace PetTheInkling
                 if (hasTagMethod != null)
                 {
                     bool result = (bool)hasTagMethod.Invoke(aiControl, new object[] { tag });
-                    MelonLogger.Msg($"    HasTag({tag}) = {result}");
                     return result;
                 }
                 else
@@ -212,7 +195,6 @@ namespace PetTheInkling
                     // Fallback: check the name for common pet indicators
                     bool result = aiControl.name.ToLower().Contains(tag.ToLower()) ||
                                  aiControl.AIName.ToLower().Contains(tag.ToLower());
-                    MelonLogger.Msg($"    HasTag({tag}) fallback = {result}");
                     return result;
                 }
             }
@@ -257,7 +239,13 @@ namespace PetTheInkling
         {
             try
             {
-                interaction.OnInteract += () => {
+                interaction.OnInteract += () => 
+                {
+                    PlayerControl.myInstance.Display.Emote("emote_pet");
+                    ParticleSystem system = interaction.transform.Find("RigHead/Bubbles").GetComponent<ParticleSystem>();
+                    system.Emit(320);
+                    system.transform.Find("Bubbles").GetComponent<ParticleSystem>().Emit(320);
+                    system.transform.Find("bubble").GetComponent<ParticleSystem>().Emit(320);
                     MelonLogger.Msg($"{aiControl.name} has been pet!");
                 };
                 // Create a simple effect that could play an animation or sound
@@ -283,7 +271,7 @@ namespace PetTheInkling
 
                 var interactions = GameObject.FindObjectsOfType<AIDiageticInteraction>();
                 var nearbyPetInteractions = interactions.Where(i => 
-                    i.Label == "Pet Inkling" && 
+                    i.Label == "Pet" && 
                     Vector3.Distance(i.transform.position, player.transform.position) < 10f).ToList();
 
                 if (nearbyPetInteractions.Count > 0)
